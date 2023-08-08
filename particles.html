@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Particle Effect</title>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+                background-color: black;
+                color: white;
+                font-family: Arial, sans-serif;
+            }
+
+            canvas {
+                position: absolute;
+                left: 0;
+                top: 0;
+            }
+
+            #counter {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                font-size: 1.2em;
+            }
+
+            #timer {
+                position: fixed;
+                top: 60px;
+                right: 20px;
+                font-size: 1.2em;
+            }
+
+            #maxParticles {
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                font-size: 1.2em;
+            }
+
+            #clicksRemaining {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                font-size: 1.2em;
+            }
+
+            #gameOver {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 3em;
+                background-color: rgba(0, 0, 0, 0.7);
+                padding: 20px;
+                border-radius: 10px;
+                opacity: 0;
+                transition: opacity 0.5s ease-in;
+                text-align: center;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-height: 200px;
+            }
+
+            #gameOver button {
+                margin-top: 20px;
+                padding: 10px 20px;
+                font-size: 1.2em;
+                cursor: pointer;
+            }
+
+            #newHighScore {
+                color: #00ff00;
+                font-size: 0.6em;
+                font-weight: bold;
+                display: none;
+            }
+
+            .frozenParticles {
+                position: absolute;
+                pointer-events: none;
+                font-size: 1.5em;
+                animation: fadeOut 2s ease-out forwards;
+            }
+
+            @keyframes fadeOut {
+                to { opacity: 0; }
+            }
+
+            .blur {
+                filter: blur(5px);
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" class="canvas"></canvas>
+        <div id="counter">Connected Particles: 0</div>
+        <div id="timer">0.00s</div>
+        <div id="maxParticles" style="display: none;">Max Frozen Particles: 0</div>
+        <div id="clicksRemaining">Clicks Remaining: 5</div>
+        <div id="gameOver">
+            <div>Game Over!</div>
+            <div id="gameOverScore">Max Frozen Particles: 0</div>
+            <div id="newHighScore">New High Score!</div>
+            <div id="highScore">Overall High Score: 0</div>
+            <button id="restart">Restart</button>
+        </div>
+
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const counterElement = document.getElementById('counter');
+            const timerElement = document.getElementById('timer');
+            const maxParticlesElement = document.getElementById('maxParticles');
+            const clicksRemainingElement = document.getElementById('clicksRemaining');
+            const gameOverElement = document.getElementById('gameOver');
+            const gameOverScoreElement = document.getElementById('gameOverScore');
+            const highScoreElement = document.getElementById('highScore');
+            const newHighScoreElement = document.getElementById('newHighScore');
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            let particlesArray;
+            let freezeParticles = false;
+            let connectedParticles = 0;
+            let maxFrozenParticles = 0;
+            let lastClickTime = Date.now();
+            let elapsedTime = 0;
+            let unfreezeTimeout = null;
+            let clicksRemaining = 5;
+            let gameEnded = false;
+            let highScore = localStorage.getItem('highScore') || 0;
+
+            let mouse = {
+                x: null,
+                y: null,
+                radius: (canvas.height / 80) * (canvas.width / 80)
+            };
+
+            if (mouse.radius < 100) {
+                mouse.radius = 100;
+            }
+
+            window.addEventListener('mousemove', function (event) {
+                mouse.x = event.x;
+                mouse.y = event.y;
+            });
+
+            window.addEventListener('touchmove', function (event) {
+                let touch = event.touches[0];
+                mouse.x = touch.clientX;
+                mouse.y = touch.clientY;
+            }, false);
+
+            function performClick() {
+                if (!gameEnded && !freezeParticles && clicksRemaining > 0) {
+                    freezeParticles = true;
+                    clicksRemaining--;
+                    clicksRemainingElement.textContent = `Clicks Remaining: ${clicksRemaining}`;
+                    if (connectedParticles > maxFrozenParticles) {
+                        maxFrozenParticles = connectedParticles;
+                        maxParticlesElement.textContent = `Max Frozen Particles: ${maxFrozenParticles}`;
+                    }
+                    maxParticlesElement.style.display = "block";
+
+                    let frozenParticlesElement = document.createElement('div');
+                    frozenParticlesElement.className = 'frozenParticles';
+                    frozenParticlesElement.textContent = connectedParticles;
+                    frozenParticlesElement.style.left = `${mouse.x - frozenParticlesElement.offsetWidth/2}px`;
+                    frozenParticlesElement.style.top = `${mouse.y - 100}px`;
+                    document.body.appendChild(frozenParticlesElement);
+                    setTimeout(() => {
+                        document.body.removeChild(frozenParticlesElement);
+                    }, 2000);
+
+                    unfreezeTimeout = setTimeout(() => {
+                        freezeParticles = false;
+                        lastClickTime = Date.now();
+                    }, 1000);
+                }
+            }
+
+            window.addEventListener('click', performClick);
+
+            window.addEventListener('touchend', performClick);
+
+            document.getElementById('restart').addEventListener('click', function() {
+                gameOverElement.style.opacity = '0';
+                canvas.classList.remove('blur');
+                setTimeout(() => {
+                    gameOverElement.style.display = 'none';
+                    gameEnded = false;
+                    freezeParticles = false;
+                    clicksRemaining = 5;
+                    maxFrozenParticles = 0;
+                    clicksRemainingElement.textContent = `Clicks Remaining: ${clicksRemaining}`;
+                    maxParticlesElement.style.display = 'none';
+                    lastClickTime = Date.now();
+                    init();
+                    animate();
+                }, 500);
+            });
+
+            class Particle {
+                constructor(x, y, directionX, directionY, size, color) {
+                    this.x = x;
+                    this.y = y;
+                    this.directionX = directionX;
+                    this.directionY = directionY;
+                    this.size = size;
+                    this.color = color;
+                }
+
+                draw() {
+                    ctx.beginPath();
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = 2;
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                    ctx.stroke();
+                }
+
+                update() {
+                    if (!freezeParticles && !gameEnded) {
+                        if (this.x + this.size * 2 > canvas.width || this.x - this.size * 2 < 0) {
+                            this.directionX = -this.directionX;
+                        }
+                        if (this.y + this.size * 2 > canvas.height || this.y - this.size * 2 < 0) {
+                            this.directionY = -this.directionY;
+                        }
+
+                        this.x += this.directionX;
+                        this.y += this.directionY;
+                    }
+
+                    this.draw();
+
+                    if (Math.abs(mouse.x - this.x) < mouse.radius && Math.abs(mouse.y - this.y) < mouse.radius) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(mouse.x, mouse.y);
+                        ctx.stroke();
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
+            function init() {
+                particlesArray = [];
+                let numberOfParticles = ((canvas.height * canvas.width) / 9000) + 27;
+                if (numberOfParticles < 100) {
+                    numberOfParticles = 100;
+                }
+                for (let i = 0; i < numberOfParticles; i++) {
+                    let size = (Math.random() * 5) + 1;
+                    let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
+                    let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
+                    let directionX = (Math.random() * 5) - 2.5;
+                    let directionY = (Math.random() * 5) - 2.5;
+
+                    // Calculate gradient color based on particle's x position
+                    let gradientRatio = x / innerWidth;
+                    let color = `rgba(${255 * (1 - gradientRatio)}, ${255 * gradientRatio}, 255, 1)`; // Updated alpha value to 1 for increased brightness
+
+                    particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+                }
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+                connectedParticles = 0;
+                for (let i = 0; i < particlesArray.length; i++) {
+                    if (particlesArray[i].update()) {
+                        connectedParticles++;
+                    }
+                }
+                counterElement.textContent = `Connected Particles: ${connectedParticles}`;
+
+                if (!freezeParticles && !gameEnded) {
+                    elapsedTime = (Date.now() - lastClickTime) / 1000;
+                }
+                timerElement.textContent = `${elapsedTime.toFixed(2)}s`;
+
+                if (clicksRemaining === 0 && !gameEnded) {
+                    gameEnded = true;
+                    gameOverElement.style.display = "flex";
+                    gameOverElement.style.opacity = '1';
+                    gameOverScoreElement.textContent = `Max Frozen Particles: ${maxFrozenParticles}`;
+
+                    if (maxFrozenParticles > highScore) {
+                        highScore = maxFrozenParticles;
+                        localStorage.setItem('highScore', highScore);
+                        newHighScoreElement.style.display = 'block';
+                    }
+                    highScoreElement.textContent = `Overall High Score: ${highScore}`;
+
+                    canvas.classList.add('blur');
+                    clearTimeout(unfreezeTimeout);
+                    return;
+                }
+
+                if (!gameEnded) {
+                    requestAnimationFrame(animate);
+                }
+            }
+
+                window.addEventListener('resize', function () {
+        canvas.width = innerWidth;
+        canvas.height = innerHeight;
+        mouse.radius = ((canvas.height / 80) * (canvas.width / 80));
+        if (mouse.radius < 70) {
+            mouse.radius = 70;
+        }
+        init();
+    });
+
+    window.addEventListener('mouseout', function () {
+        mouse.x = undefined;
+        mouse.y = undefined;
+    })
+
+    window.addEventListener('touchleave', function () {
+        mouse.x = undefined;
+        mouse.y = undefined;
+    });
+
+    init();
+    animate();
+</script>
+    </body>
+</html>
